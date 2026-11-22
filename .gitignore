@@ -1,5 +1,6 @@
-# Delphi Compiler Intermediate Files
+# Delphi Compiler Intermediate & Binary Files
 *.dcu
+*.o
 *.~*
 *.stat
 *.identcache
@@ -10,23 +11,27 @@
 *.tvsconfig
 *.projdata
 *.vlb
+*.cgl
+*.dpu
 
-# Delphi IDE History & Recovery
-__history/
-__recovery/
-
-# Excluded Documentation & Specifications
-gwt_adb_fastboot_tool_delphi_13_native_protocol_documentation.md
-*.pdf
-*UI*.pdf
-
-# Build Output Directories
+# Binaries & Executables (Build Artifacts)
+*.exe
+*.dll
 Win32/
 Win64/
 **/Win32/
 **/Win64/
 *.dproj.local
-Test_GWT_Connection.exe
+
+# Delphi IDE History & Recovery
+__history/
+__recovery/
+GWT_Tool/
+
+# Excluded Documentation & Specifications
+gwt_adb_fastboot_tool_delphi_13_native_protocol_documentation.md
+*.pdf
+*UI*.pdf
 
 # OS Generated Files
 Thumbs.db
