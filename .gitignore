@@ -17,6 +17,7 @@
 # Binaries & Executables (Build Artifacts)
 *.exe
 *.dll
+*.zip
 Win32/
 Win64/
 **/Win32/

@@ -101,7 +101,7 @@ begin
   LoadActiveFrame;
 
   AppendLog('====================================================', llInfo);
-  AppendLog('GWT ADB & Fastboot Tool v1.2 Initialized', llSuccess);
+  AppendLog('GWT ADB & Fastboot Tool v1.0 Initialized', llSuccess);
   AppendLog('Real-time USB & Socket Auto-Detection Engine Active', llSuccess);
   AppendLog('====================================================', llInfo);
 

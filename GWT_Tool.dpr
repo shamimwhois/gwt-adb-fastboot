@@ -22,7 +22,7 @@ uses
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
-  Application.Title := 'GWT ADB & Fastboot Tool v1.2';
+  Application.Title := 'GWT ADB & Fastboot Tool v1.0';
   Application.CreateForm(TFormMain, FormMain);
   Application.Run;
 end.

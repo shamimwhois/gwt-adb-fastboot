@@ -1,7 +1,7 @@
 object FormMain: TFormMain
   Left = 0
   Top = 0
-  Caption = 'GWT ADB & Fastboot Tool v1.2'
+  Caption = 'GWT ADB & Fastboot Tool v1.0'
   ClientHeight = 680
   ClientWidth = 1080
   Color = 1708299
@@ -51,7 +51,7 @@ object FormMain: TFormMain
       Top = 17
       Width = 179
       Height = 20
-      Caption = 'ADB & FASTBOOT TOOL v1.2'
+      Caption = 'ADB & FASTBOOT TOOL v1.0'
       Font.Charset = DEFAULT_CHARSET
       Font.Color = clWhite
       Font.Height = -15

@@ -1,7 +1,7 @@
 @echo off
 setlocal
 echo ===================================================
-echo  Building GWT ADB ^& Fastboot Tool v1.2 (Delphi 13)
+echo  Building GWT ADB ^& Fastboot Tool v1.0 (Delphi 13)
 echo ===================================================
 
 set RAD_BIN=D:\studio\rad\37.0\bin
