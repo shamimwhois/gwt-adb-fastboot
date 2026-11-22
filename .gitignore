@@ -1,0 +1,31 @@
+# Delphi Compiler Intermediate Files
+*.dcu
+*.~*
+*.stat
+*.identcache
+*.drc
+*.map
+*.rsm
+*.local
+*.tvsconfig
+*.projdata
+*.vlb
+
+# Delphi IDE History & Recovery
+__history/
+__recovery/
+
+# Build Output Directories
+Win32/
+Win64/
+**/Win32/
+**/Win64/
+*.dproj.local
+Test_GWT_Connection.exe
+GWT_Tool/GWT_Tool.exe
+
+# OS Generated Files
+Thumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.tmp
