@@ -15,6 +15,11 @@
 __history/
 __recovery/
 
+# Excluded Documentation & Specifications
+gwt_adb_fastboot_tool_delphi_13_native_protocol_documentation.md
+*.pdf
+*UI*.pdf
+
 # Build Output Directories
 Win32/
 Win64/
@@ -22,7 +27,6 @@ Win64/
 **/Win64/
 *.dproj.local
 Test_GWT_Connection.exe
-GWT_Tool/GWT_Tool.exe
 
 # OS Generated Files
 Thumbs.db

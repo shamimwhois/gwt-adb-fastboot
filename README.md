@@ -33,34 +33,33 @@ A professional, high-performance Android service and flashing utility written in
 ## Project Structure
 
 ```
-adb-fastboot/
+gwt-adb-fastboot/
 ├── CHANGELOG.md
 ├── README.md
 ├── .gitignore
-├── gwt_adb_fastboot_tool_delphi_13_native_protocol_documentation.md
+├── Build.bat                             # Automated Win32 & Win64 compilation script
+├── GWT_Tool.dpr                          # Delphi Application Entry Point
+├── GWT_Tool.dproj                        # Delphi Project File
+├── GWT_Tool.rc / .res                    # Application resources and manifests
 ├── GWT_Tool.exe                          # Standalone Win32 Release Executable
-└── GWT_Tool/
-    ├── Build.bat                         # Automated Win32 & Win64 compilation script
-    ├── GWT_Tool.dpr                      # Delphi Application Entry Point
-    ├── GWT_Tool.dproj                    # Delphi Project File
-    ├── Core/
-    │   └── GWT.Types.pas                 # Shared types, records, and constants
-    ├── Protocols/
-    │   ├── GWT.WinUSB.API.pas            # WinUSB & SetupAPI direct DLL headers
-    │   ├── GWT.WinUSB.Transport.pas      # Bulk pipe transport layer & device scanner
-    │   ├── GWT.Protocol.ADB.pas          # Native ADB packet engine & RSA handshake
-    │   └── GWT.Protocol.Fastboot.pas     # Native Fastboot command & download engine
-    ├── Services/
-    │   └── GWT.CommandService.pas        # Central async operation orchestrator
-    ├── Frames/
-    │   ├── Frame.AdbService.pas/.dfm     # ADB workspace & brand cards
-    │   ├── Frame.FastbootService.pas/.dfm# Fastboot service workspace
-    │   ├── Frame.FastbootFlash.pas/.dfm  # Fastboot partition & ROM flasher
-    │   ├── Frame.RecoveryService.pas/.dfm# Recovery service workspace
-    │   └── Frame.RecoveryFlash.pas/.dfm  # Recovery sideload ZIP flasher
-    └── UI/
-        ├── Form.Main.pas                 # Main application window logic
-        └── Form.Main.dfm                 # VCL form layout
+├── Core/
+│   └── GWT.Types.pas                     # Shared types, records, and constants
+├── Protocols/
+│   ├── GWT.WinUSB.API.pas                # WinUSB & SetupAPI direct DLL headers
+│   ├── GWT.WinUSB.Transport.pas          # Bulk pipe transport layer & device scanner
+│   ├── GWT.Protocol.ADB.pas              # Native ADB packet engine & RSA handshake
+│   └── GWT.Protocol.Fastboot.pas         # Native Fastboot command & download engine
+├── Services/
+│   └── GWT.CommandService.pas            # Central async operation orchestrator
+├── Frames/
+│   ├── Frame.AdbService.pas/.dfm         # ADB workspace & brand cards
+│   ├── Frame.FastbootService.pas/.dfm    # Fastboot service workspace
+│   ├── Frame.FastbootFlash.pas/.dfm      # Fastboot partition & ROM flasher
+│   ├── Frame.RecoveryService.pas/.dfm    # Recovery service workspace
+│   └── Frame.RecoveryFlash.pas/.dfm      # Recovery sideload ZIP flasher
+└── UI/
+    ├── Form.Main.pas                     # Main application window logic
+    └── Form.Main.dfm                     # VCL form layout
 ```
 
 ---
@@ -72,9 +71,8 @@ adb-fastboot/
 - Windows 10 / 11 (x86 or x64).
 
 ### Automated Build
-Run the included build batch script:
+Run the included build batch script directly from the project directory:
 ```cmd
-cd GWT_Tool
 Build.bat
 ```
 This produces optimized Release binaries:
