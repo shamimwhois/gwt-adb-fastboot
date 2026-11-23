@@ -6,9 +6,21 @@ uses
   System.SysUtils, Vcl.Graphics;
 
 type
-  TBrandKind  = (bkXiaomi, bkVivo, bkHuawei);
+  TBrandKind     = (bkXiaomi, bkVivo, bkHuawei);
+  TBrandCategory = (
+    bcUniversal,
+    bcSamsung,
+    bcXiaomi,
+    bcVivo,
+    bcHuawei,
+    bcOppoRealme,
+    bcTranssion,
+    bcMtkGeneric,
+    bcQcomGeneric,
+    bcUnisocGeneric
+  );
   TDeviceMode = (dmADB, dmFastboot, dmRecovery);
-  TSubMode    = (smService, smFlash);
+  TSubMode    = (smService, smFlash, smNetworkUnlock);
   TLogLevel   = (llInfo, llSuccess, llWarning, llError, llTx, llRx, llCommand);
 
   TUsbDeviceInfo = record
@@ -53,6 +65,68 @@ const
   USB_PROTOCOL_ADB        = $01;
   USB_PROTOCOL_FASTBOOT   = $03;
 
+function CalculateLuhnCheckDigit(const A14Digits: string): Integer;
+function IsValidImei(const AImei: string): Boolean;
+function BrandCategoryToString(ABrand: TBrandCategory): string;
+
 implementation
+
+function CalculateLuhnCheckDigit(const A14Digits: string): Integer;
+var
+  I, Digit, Sum: Integer;
+begin
+  Sum := 0;
+  for I := 1 to Length(A14Digits) do
+  begin
+    if (A14Digits[I] >= '0') and (A14Digits[I] <= '9') then
+    begin
+      Digit := Ord(A14Digits[I]) - Ord('0');
+      // Luhn doubling every second digit from right or standard odd/even
+      // For 14-digit payload where index 1 is odd:
+      // Even indices (2, 4, 6, 8, 10, 12, 14) are doubled:
+      if (I mod 2) = 0 then
+      begin
+        Digit := Digit * 2;
+        if Digit > 9 then
+          Digit := (Digit div 10) + (Digit mod 10);
+      end;
+      Sum := Sum + Digit;
+    end;
+  end;
+  Result := (10 - (Sum mod 10)) mod 10;
+end;
+
+function IsValidImei(const AImei: string): Boolean;
+var
+  CleanImei: string;
+  I: Integer;
+begin
+  CleanImei := '';
+  for I := 1 to Length(AImei) do
+    if (AImei[I] >= '0') and (AImei[I] <= '9') then
+      CleanImei := CleanImei + AImei[I];
+
+  if Length(CleanImei) <> 15 then
+    Exit(False);
+
+  Result := (StrToIntDef(Copy(CleanImei, 15, 1), -1) = CalculateLuhnCheckDigit(Copy(CleanImei, 1, 14)));
+end;
+
+function BrandCategoryToString(ABrand: TBrandCategory): string;
+begin
+  case ABrand of
+    bcSamsung:       Result := 'Samsung';
+    bcXiaomi:        Result := 'Xiaomi / Redmi / POCO';
+    bcVivo:          Result := 'Vivo / iQOO';
+    bcHuawei:        Result := 'Huawei / Honor';
+    bcOppoRealme:    Result := 'Oppo / Realme / OnePlus';
+    bcTranssion:     Result := 'Transsion (Tecno / Infinix / Itel)';
+    bcMtkGeneric:    Result := 'MediaTek Generic (MTK)';
+    bcQcomGeneric:   Result := 'Qualcomm Generic (QCOM)';
+    bcUnisocGeneric: Result := 'Unisoc / Spreadtrum (SPD)';
+  else
+    Result := 'Universal / Auto-Detect';
+  end;
+end;
 
 end.

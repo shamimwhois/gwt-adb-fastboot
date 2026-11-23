@@ -7,7 +7,7 @@ uses
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls,
   Vcl.ComCtrls,
   GWT.Types, GWT.CommandService,
-  Frame.AdbService,
+  Frame.AdbService, Frame.AdbNetworkUnlock,
   Frame.FastbootService, Frame.FastbootFlash,
   Frame.RecoveryService, Frame.RecoveryFlash;
 
@@ -295,9 +295,24 @@ end;
 
 procedure TFormMain.ModeTabClick(Sender: TObject);
 begin
-  if Sender = btnModeADB then FActiveMode := dmADB
-  else if Sender = btnModeFastboot then FActiveMode := dmFastboot
-  else if Sender = btnModeRecovery then FActiveMode := dmRecovery;
+  if Sender = btnModeADB then
+  begin
+    FActiveMode := dmADB;
+    if FActiveSubMode = smFlash then
+      FActiveSubMode := smService;
+  end
+  else if Sender = btnModeFastboot then
+  begin
+    FActiveMode := dmFastboot;
+    if FActiveSubMode = smNetworkUnlock then
+      FActiveSubMode := smService;
+  end
+  else if Sender = btnModeRecovery then
+  begin
+    FActiveMode := dmRecovery;
+    if FActiveSubMode = smNetworkUnlock then
+      FActiveSubMode := smService;
+  end;
 
   UpdateNavigationUI;
   LoadActiveFrame;
@@ -305,8 +320,15 @@ end;
 
 procedure TFormMain.SubTabClick(Sender: TObject);
 begin
-  if Sender = btnSubService then FActiveSubMode := smService
-  else if Sender = btnSubFlash then FActiveSubMode := smFlash;
+  if Sender = btnSubService then
+    FActiveSubMode := smService
+  else if Sender = btnSubFlash then
+  begin
+    if FActiveMode = dmADB then
+      FActiveSubMode := smNetworkUnlock
+    else
+      FActiveSubMode := smFlash;
+  end;
 
   UpdateNavigationUI;
   LoadActiveFrame;
@@ -323,9 +345,30 @@ begin
     dmRecovery: btnModeRecovery.Font.Style := [fsBold, fsUnderline];
   end;
 
-  // In ADB mode, NO service or flash sub-tabs!
-  // Fastboot and Recovery have SERVICE and FLASH sub-tabs
-  pnlSubTabs.Visible := (FActiveMode in [dmFastboot, dmRecovery]);
+  // Sub-tabs are active across ALL modes:
+  // ADB: [SERVICE] [NETWORK UNLOCK & IMEI]
+  // FASTBOOT: [SERVICE] [FLASH]
+  // RECOVERY: [SERVICE] [FLASH / SIDELOAD]
+  pnlSubTabs.Visible := True;
+
+  if FActiveMode = dmADB then
+  begin
+    btnSubService.Caption := 'SERVICE';
+    btnSubFlash.Caption := 'NETWORK UNLOCK && IMEI';
+    btnSubFlash.Width := 170;
+  end
+  else if FActiveMode = dmFastboot then
+  begin
+    btnSubService.Caption := 'SERVICE';
+    btnSubFlash.Caption := 'FLASH';
+    btnSubFlash.Width := 120;
+  end
+  else
+  begin
+    btnSubService.Caption := 'SERVICE';
+    btnSubFlash.Caption := 'FLASH / SIDELOAD';
+    btnSubFlash.Width := 140;
+  end;
 
   btnSubService.Font.Style := [];
   btnSubFlash.Font.Style := [];
@@ -338,6 +381,7 @@ end;
 procedure TFormMain.LoadActiveFrame;
 var
   AdbSvc: TFrameAdbService;
+  AdbNet: TFrameAdbNetworkUnlock;
   FbSvc: TFrameFastbootService;
   FbFl: TFrameFastbootFlash;
   RecSvc: TFrameRecoveryService;
@@ -348,12 +392,22 @@ begin
   case FActiveMode of
     dmADB:
       begin
-        // Single direct ADB workspace with prominent Read Info button
-        AdbSvc := TFrameAdbService.Create(Self);
-        AdbSvc.Parent := pnlFrameHost;
-        AdbSvc.Align := alClient;
-        AdbSvc.BindService(FCommandService, GetSelectedDeviceInfo, HandleModeSwitched);
-        FCurrentFrame := AdbSvc;
+        if FActiveSubMode = smNetworkUnlock then
+        begin
+          AdbNet := TFrameAdbNetworkUnlock.Create(Self);
+          AdbNet.Parent := pnlFrameHost;
+          AdbNet.Align := alClient;
+          AdbNet.BindService(FCommandService, GetSelectedDeviceInfo, HandleModeSwitched);
+          FCurrentFrame := AdbNet;
+        end
+        else
+        begin
+          AdbSvc := TFrameAdbService.Create(Self);
+          AdbSvc.Parent := pnlFrameHost;
+          AdbSvc.Align := alClient;
+          AdbSvc.BindService(FCommandService, GetSelectedDeviceInfo, HandleModeSwitched);
+          FCurrentFrame := AdbSvc;
+        end;
       end;
 
     dmFastboot:

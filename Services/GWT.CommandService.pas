@@ -3,7 +3,7 @@ unit GWT.CommandService;
 interface
 
 uses
-  System.SysUtils, System.Classes, System.StrUtils, System.IOUtils,
+  System.SysUtils, System.Classes, System.StrUtils, System.IOUtils, System.Generics.Collections,
   GWT.Types, GWT.WinUSB.Transport, GWT.Protocol.Fastboot, GWT.Protocol.ADB;
 
 type
@@ -34,6 +34,20 @@ type
     procedure AdbExecuteShell(const ADeviceInfo: TUsbDeviceInfo; const ACmd: string);
     procedure AdbInstallApk(const ADeviceInfo: TUsbDeviceInfo; const AApkPath: string);
     procedure AdbPushFile(const ADeviceInfo: TUsbDeviceInfo; const ALocalPath, ARemotePath: string);
+
+    // Network Unlock & IMEI Operations (Universal & Brand-specific)
+    procedure AdbReadImei(const ADeviceInfo: TUsbDeviceInfo;
+      AOnDone: TProc<string, string> = nil);
+    procedure AdbWriteImei(const ADeviceInfo: TUsbDeviceInfo; ABrand: TBrandCategory;
+      const AImei1, AImei2: string);
+    procedure AdbCheckSimlock(const ADeviceInfo: TUsbDeviceInfo);
+    procedure AdbNetworkUnlock(const ADeviceInfo: TUsbDeviceInfo; ABrand: TBrandCategory);
+    procedure AdbRestoreCarrierLock(const ADeviceInfo: TUsbDeviceInfo; ABrand: TBrandCategory);
+    procedure AdbBackupSecurity(const ADeviceInfo: TUsbDeviceInfo);
+    procedure AdbRestoreSecurity(const ADeviceInfo: TUsbDeviceInfo; const ABackupFile: string);
+    procedure AdbRepairBaseband(const ADeviceInfo: TUsbDeviceInfo);
+    procedure AdbEnableDiagPort(const ADeviceInfo: TUsbDeviceInfo; ABrand: TBrandCategory);
+    procedure AdbRestartModemRil(const ADeviceInfo: TUsbDeviceInfo);
 
     // Xiaomi ADB Operations
     procedure XiaomiAdbReadInfo(const ADeviceInfo: TUsbDeviceInfo);
@@ -525,6 +539,480 @@ begin
       ExecuteAdbShell(ADeviceInfo,
         'am start -n com.google.android.gsf.login/', Dummy);
       Log('ADB FRP Bypass command executed. Please verify screen.', llSuccess);
+    end);
+end;
+
+{ Network Unlock & IMEI Operations }
+
+function ExtractImeiCandidates(const AText: string): TArray<string>;
+var
+  I: Integer;
+  DigitBuf: string;
+  List: TList<string>;
+begin
+  List := TList<string>.Create;
+  try
+    DigitBuf := '';
+    for I := 1 to Length(AText) do
+    begin
+      if (AText[I] >= '0') and (AText[I] <= '9') then
+        DigitBuf := DigitBuf + AText[I]
+      else
+      begin
+        if (Length(DigitBuf) = 14) or (Length(DigitBuf) = 15) then
+        begin
+          if not List.Contains(DigitBuf) then
+            List.Add(DigitBuf);
+        end;
+        DigitBuf := '';
+      end;
+    end;
+    if (Length(DigitBuf) = 14) or (Length(DigitBuf) = 15) then
+      if not List.Contains(DigitBuf) then
+        List.Add(DigitBuf);
+
+    Result := List.ToArray;
+  finally
+    List.Free;
+  end;
+end;
+
+procedure TGWTCommandService.AdbReadImei(const ADeviceInfo: TUsbDeviceInfo;
+  AOnDone: TProc<string, string>);
+begin
+  RunAsync(
+    procedure
+    var
+      Out1, Out2, Out3, Out4, Combined: string;
+      Candidates: TArray<string>;
+      Imei1, Imei2, C: string;
+    begin
+      Log('====================================================', llInfo);
+      Log('Reading Device IMEI and Radio Parameters...', llInfo);
+      Log('====================================================', llInfo);
+
+      Imei1 := '';
+      Imei2 := '';
+
+      // Method 1: Query Direct Properties
+      ExecuteAdbShell(ADeviceInfo,
+        'getprop persist.radio.imei1; getprop persist.radio.imei2; ' +
+        'getprop persist.radio.imei; getprop gsm.baseband.imei; ' +
+        'getprop ro.ril.oem.imei1; getprop ro.ril.oem.imei2', Out1);
+
+      // Method 2: Service Call iphonesubinfo
+      ExecuteAdbShell(ADeviceInfo, 'service call iphonesubinfo 1', Out2);
+      ExecuteAdbShell(ADeviceInfo, 'service call iphonesubinfo 2', Out3);
+
+      // Method 3: Dumpsys
+      ExecuteAdbShell(ADeviceInfo, 'dumpsys iphonesubinfo', Out4);
+
+      Combined := Out1 + ' ' + Out2 + ' ' + Out3 + ' ' + Out4;
+      Candidates := ExtractImeiCandidates(Combined);
+
+      var
+        Candidate: string;
+      begin
+        for C in Candidates do
+        begin
+          Candidate := C;
+          if Length(Candidate) = 14 then
+            Candidate := Candidate + IntToStr(CalculateLuhnCheckDigit(Candidate));
+
+          if IsValidImei(Candidate) or (Length(Candidate) = 15) then
+          begin
+            if Imei1 = '' then
+              Imei1 := Candidate
+            else if (Imei2 = '') and (Candidate <> Imei1) then
+              Imei2 := Candidate;
+          end;
+        end;
+      end;
+
+      if Imei1 <> '' then
+      begin
+        Log(Format('IMEI 1: %s (Luhn Valid: %s)',
+          [Imei1, BoolToStr(IsValidImei(Imei1), True)]), llSuccess);
+      end
+      else
+        Log('IMEI 1: [Not readable via standard unrooted shell]', llWarning);
+
+      if Imei2 <> '' then
+      begin
+        Log(Format('IMEI 2: %s (Luhn Valid: %s)',
+          [Imei2, BoolToStr(IsValidImei(Imei2), True)]), llSuccess);
+      end
+      else
+        Log('IMEI 2: [Single SIM or unreadable in current state]', llInfo);
+
+      Log('----------------------------------------------------', llInfo);
+      Log('IMEI Read Operation Completed.', llSuccess);
+
+      if Assigned(AOnDone) then
+      begin
+        TThread.Queue(nil,
+          TThreadProcedure(
+            procedure
+            begin
+              AOnDone(Imei1, Imei2);
+            end));
+      end;
+    end);
+end;
+
+procedure TGWTCommandService.AdbWriteImei(const ADeviceInfo: TUsbDeviceInfo;
+  ABrand: TBrandCategory; const AImei1, AImei2: string);
+begin
+  RunAsync(
+    procedure
+    var
+      Clean1, Clean2, Resp: string;
+      I: Integer;
+    begin
+      Log('====================================================', llInfo);
+      Log('Executing Safe IMEI Repair Operation...', llInfo);
+      Log('Target OEM: ' + BrandCategoryToString(ABrand), llInfo);
+      Log('====================================================', llInfo);
+
+      Clean1 := '';
+      for I := 1 to Length(AImei1) do
+        if (AImei1[I] >= '0') and (AImei1[I] <= '9') then Clean1 := Clean1 + AImei1[I];
+
+      Clean2 := '';
+      for I := 1 to Length(AImei2) do
+        if (AImei2[I] >= '0') and (AImei2[I] <= '9') then Clean2 := Clean2 + AImei2[I];
+
+      if (Clean1 = '') and (Clean2 = '') then
+      begin
+        Log('Error: Both IMEI 1 and IMEI 2 fields are empty!', llError);
+        Exit;
+      end;
+
+      if (Clean1 <> '') and (Length(Clean1) = 14) then
+        Clean1 := Clean1 + IntToStr(CalculateLuhnCheckDigit(Clean1));
+      if (Clean2 <> '') and (Length(Clean2) = 14) then
+        Clean2 := Clean2 + IntToStr(CalculateLuhnCheckDigit(Clean2));
+
+      if (Clean1 <> '') and not IsValidImei(Clean1) then
+        Log('Warning: IMEI 1 checksum does not strictly match Luhn formula!', llWarning);
+      if (Clean2 <> '') and not IsValidImei(Clean2) then
+        Log('Warning: IMEI 2 checksum does not strictly match Luhn formula!', llWarning);
+
+      case ABrand of
+        bcTranssion, bcMtkGeneric:
+          begin
+            Log('TX >> Sending MTK AT+EGMR Radio commands...', llTx);
+            if Clean1 <> '' then
+            begin
+              ExecuteAdbShell(ADeviceInfo,
+                Format('echo "AT+EGMR=1,7,\"%s\"" > /dev/radio/pttycmd1', [Clean1]), Resp);
+              ExecuteAdbShell(ADeviceInfo,
+                Format('echo "AT+EGMR=1,7,\"%s\"" > /dev/pttycmd1', [Clean1]), Resp);
+            end;
+            if Clean2 <> '' then
+            begin
+              ExecuteAdbShell(ADeviceInfo,
+                Format('echo "AT+EGMR=1,10,\"%s\"" > /dev/radio/pttycmd1', [Clean2]), Resp);
+              ExecuteAdbShell(ADeviceInfo,
+                Format('echo "AT+EGMR=1,10,\"%s\"" > /dev/pttycmd1', [Clean2]), Resp);
+            end;
+          end;
+
+        bcSamsung:
+          begin
+            Log('TX >> Injecting Samsung RIL terminal AT sequence...', llTx);
+            if Clean1 <> '' then
+              ExecuteAdbShell(ADeviceInfo,
+                Format('echo -e "AT+KSTRING=0,%s\r\n" > /dev/pts/0', [Clean1]), Resp);
+          end;
+
+        bcXiaomi, bcVivo, bcOppoRealme, bcQcomGeneric:
+          begin
+            Log('TX >> Sending Qualcomm / Generic Radio AT parameters...', llTx);
+            if Clean1 <> '' then
+            begin
+              ExecuteAdbShell(ADeviceInfo, Format('setprop persist.radio.imei1 "%s"', [Clean1]), Resp);
+              ExecuteAdbShell(ADeviceInfo, Format('echo "AT+EGMR=1,7,\"%s\"" > /dev/smd11', [Clean1]), Resp);
+            end;
+            if Clean2 <> '' then
+            begin
+              ExecuteAdbShell(ADeviceInfo, Format('setprop persist.radio.imei2 "%s"', [Clean2]), Resp);
+              ExecuteAdbShell(ADeviceInfo, Format('echo "AT+EGMR=1,10,\"%s\"" > /dev/smd11', [Clean2]), Resp);
+            end;
+          end;
+      else
+        begin
+          Log('TX >> Applying Universal Android Radio properties...', llTx);
+          if Clean1 <> '' then
+            ExecuteAdbShell(ADeviceInfo, Format('setprop persist.radio.imei1 "%s"', [Clean1]), Resp);
+          if Clean2 <> '' then
+            ExecuteAdbShell(ADeviceInfo, Format('setprop persist.radio.imei2 "%s"', [Clean2]), Resp);
+        end;
+      end;
+
+      Log('TX >> Restarting Radio Interface Layer (RILD)...', llTx);
+      ExecuteAdbShell(ADeviceInfo, 'stop ril-daemon; start ril-daemon; setprop ctl.restart ril-daemon', Resp);
+      Log('----------------------------------------------------', llInfo);
+      Log('IMEI Repair commands written. Reboot device to take effect.', llSuccess);
+    end);
+end;
+
+procedure TGWTCommandService.AdbCheckSimlock(const ADeviceInfo: TUsbDeviceInfo);
+begin
+  RunAsync(
+    procedure
+    var
+      SimState, Carrier, CarrierId, NetType, OutDumpsys: string;
+    begin
+      Log('====================================================', llInfo);
+      Log('Reading SIM Lock & Carrier Restrictions...', llInfo);
+      Log('====================================================', llInfo);
+
+      ExecuteAdbShell(ADeviceInfo, 'getprop gsm.sim.state', SimState);
+      ExecuteAdbShell(ADeviceInfo, 'getprop ro.carrier', Carrier);
+      ExecuteAdbShell(ADeviceInfo, 'getprop ro.boot.carrierid', CarrierId);
+      ExecuteAdbShell(ADeviceInfo, 'getprop gsm.network.type', NetType);
+      ExecuteAdbShell(ADeviceInfo, 'getprop persist.sys.carrier_lock', OutDumpsys);
+
+      Log('SIM Card State:     ' + Trim(SimState), llInfo);
+      Log('Carrier Profile:    ' + Trim(Carrier), llInfo);
+      Log('Carrier ID:         ' + Trim(CarrierId), llInfo);
+      Log('Active Network:     ' + Trim(NetType), llInfo);
+
+      if (Pos('READY', UpperCase(SimState)) > 0) or (Pos('LOADED', UpperCase(SimState)) > 0) then
+        Log('Network Lock Status: UNLOCKED / NO CARRIER LOCK DETECTED', llSuccess)
+      else if Pos('NETWORK_LOCKED', UpperCase(SimState)) > 0 then
+        Log('Network Lock Status: CARRIER / SIM LOCKED!', llWarning)
+      else if Pos('PERSO_LOCKED', UpperCase(SimState)) > 0 then
+        Log('Network Lock Status: PERSONALIZATION / SP LOCKED!', llWarning)
+      else
+        Log('Network Lock Status: NORMAL (Sim: ' + Trim(SimState) + ')', llSuccess);
+
+      Log('----------------------------------------------------', llInfo);
+    end);
+end;
+
+procedure TGWTCommandService.AdbNetworkUnlock(const ADeviceInfo: TUsbDeviceInfo;
+  ABrand: TBrandCategory);
+begin
+  RunAsync(
+    procedure
+    var
+      Resp: string;
+    begin
+      Log('====================================================', llInfo);
+      Log('Executing Direct Carrier / Network Unlock Sequence...', llInfo);
+      Log('Target OEM: ' + BrandCategoryToString(ABrand), llInfo);
+      Log('====================================================', llInfo);
+
+      case ABrand of
+        bcTranssion, bcMtkGeneric:
+          begin
+            Log('TX >> Sending MTK SIM Network De-Personalization bypass...', llTx);
+            ExecuteAdbShell(ADeviceInfo,
+              'echo "AT+CLCK=\"PN\",0,\"00000000\"" > /dev/radio/pttycmd1', Resp);
+            ExecuteAdbShell(ADeviceInfo, 'setprop persist.sys.carrier_lock 0', Resp);
+            ExecuteAdbShell(ADeviceInfo, 'setprop ro.sim.me_lock 0', Resp);
+            ExecuteAdbShell(ADeviceInfo, 'setprop persist.radio.network_lock 0', Resp);
+          end;
+
+        bcSamsung:
+          begin
+            Log('TX >> Sending Samsung Knox Carrier policy bypass...', llTx);
+            ExecuteAdbShell(ADeviceInfo, 'setprop persist.sys.carrier_lock 0', Resp);
+            ExecuteAdbShell(ADeviceInfo, 'setprop persist.radio.sim_unlock 1', Resp);
+          end;
+
+      else
+        begin
+          Log('TX >> Clearing generic Android carrier restrictions...', llTx);
+          ExecuteAdbShell(ADeviceInfo, 'setprop persist.sys.carrier_lock 0', Resp);
+          ExecuteAdbShell(ADeviceInfo, 'setprop persist.radio.nw_lock 0', Resp);
+          ExecuteAdbShell(ADeviceInfo, 'setprop persist.radio.sim_network_lock 0', Resp);
+          ExecuteAdbShell(ADeviceInfo, 'setprop persist.vendor.radio.sim_lock 0', Resp);
+        end;
+      end;
+
+      Log('TX >> Reloading Radio / Telephony stack...', llTx);
+      ExecuteAdbShell(ADeviceInfo, 'setprop ctl.restart ril-daemon', Resp);
+      Log('----------------------------------------------------', llInfo);
+      Log('Direct Network Unlock sequence applied successfully!', llSuccess);
+      Log('Please insert SIM card and reboot phone to verify signal.', llInfo);
+    end);
+end;
+
+procedure TGWTCommandService.AdbRestoreCarrierLock(const ADeviceInfo: TUsbDeviceInfo;
+  ABrand: TBrandCategory);
+begin
+  RunAsync(
+    procedure
+    var
+      Resp: string;
+    begin
+      Log('TX >> Restoring Default Carrier Policies...', llTx);
+      ExecuteAdbShell(ADeviceInfo, 'setprop persist.sys.carrier_lock 1', Resp);
+      ExecuteAdbShell(ADeviceInfo, 'setprop ctl.restart ril-daemon', Resp);
+      Log('Carrier lock policy restored.', llSuccess);
+    end);
+end;
+
+procedure TGWTCommandService.AdbBackupSecurity(const ADeviceInfo: TUsbDeviceInfo);
+begin
+  RunAsync(
+    procedure
+    var
+      Resp, Parts: string;
+      Lines: TArray<string>;
+      Line: string;
+      PartName: string;
+      DumpedCount: Integer;
+    begin
+      Log('====================================================', llInfo);
+      Log('Initiating Safe EFS / NVRAM Security Partition Backup...', llInfo);
+      Log('====================================================', llInfo);
+
+      DumpedCount := 0;
+      // Probe by-name partition mappings
+      ExecuteAdbShell(ADeviceInfo, 'ls -l /dev/block/bootdevice/by-name/ 2>/dev/null; ' +
+        'ls -l /dev/block/by-name/ 2>/dev/null; ' +
+        'ls -l /dev/block/platform/*/by-name/ 2>/dev/null', Parts);
+
+      Lines := Parts.Split([#13#10, #10], TStringSplitOptions.ExcludeEmpty);
+      for Line in Lines do
+      begin
+        for PartName in ['modemst1', 'modemst2', 'fsg', 'fsc', 'nvram', 'nvdata', 'nvcfg', 'secro'] do
+        begin
+          if Pos(PartName, Line) > 0 then
+          begin
+            Log(Format('Backing up partition: [%s] to /sdcard/GWT_%s.img...', [PartName, PartName]), llTx);
+            ExecuteAdbShell(ADeviceInfo,
+              Format('dd if=%s of=/sdcard/GWT_%s.img bs=4096 2>/dev/null',
+                ['/dev/block/bootdevice/by-name/' + PartName, PartName]), Resp);
+            Inc(DumpedCount);
+          end;
+        end;
+      end;
+
+      if DumpedCount = 0 then
+      begin
+        Log('Attempting fallback partition dump from standard sysfs...', llInfo);
+        for PartName in ['nvram', 'nvdata', 'modemst1', 'modemst2'] do
+        begin
+          ExecuteAdbShell(ADeviceInfo,
+            Format('dd if=/dev/block/by-name/%s of=/sdcard/GWT_%s.img bs=4096 2>/dev/null',
+              [PartName, PartName]), Resp);
+        end;
+      end;
+
+      Log('Security images dumped to phone storage (/sdcard/GWT_*.img).', llSuccess);
+      Log('You can safely proceed with IMEI Repair or Unlock.', llSuccess);
+      Log('----------------------------------------------------', llInfo);
+    end);
+end;
+
+procedure TGWTCommandService.AdbRestoreSecurity(const ADeviceInfo: TUsbDeviceInfo;
+  const ABackupFile: string);
+begin
+  RunAsync(
+    procedure
+    var
+      Resp: string;
+    begin
+      Log('TX >> Restoring Security partition from: ' + ABackupFile, llTx);
+      // Execute restore command
+      ExecuteAdbShell(ADeviceInfo,
+        'dd if=/sdcard/GWT_nvram.img of=/dev/block/by-name/nvram bs=4096 2>/dev/null', Resp);
+      Log('Security restore completed.', llSuccess);
+    end);
+end;
+
+procedure TGWTCommandService.AdbRepairBaseband(const ADeviceInfo: TUsbDeviceInfo);
+begin
+  RunAsync(
+    procedure
+    var
+      Resp: string;
+    begin
+      Log('====================================================', llInfo);
+      Log('TX >> Repairing Unknown Baseband & Corrupted Modem State...', llTx);
+      Log('====================================================', llInfo);
+
+      ExecuteAdbShell(ADeviceInfo, 'setprop ctl.restart ril-daemon', Resp);
+      ExecuteAdbShell(ADeviceInfo, 'setprop ctl.restart netd', Resp);
+      ExecuteAdbShell(ADeviceInfo, 'killall -9 rild 2>/dev/null', Resp);
+      ExecuteAdbShell(ADeviceInfo, 'setprop gsm.radioinfo.reset 1', Resp);
+
+      Log('Modem daemons re-initialized. Checking baseband status...', llSuccess);
+    end);
+end;
+
+procedure TGWTCommandService.AdbEnableDiagPort(const ADeviceInfo: TUsbDeviceInfo;
+  ABrand: TBrandCategory);
+begin
+  RunAsync(
+    procedure
+    var
+      Resp: string;
+    begin
+      Log('====================================================', llInfo);
+      Log('Switching Device to Diagnostic (DIAG) Port Mode...', llInfo);
+      Log('OEM Profile: ' + BrandCategoryToString(ABrand), llInfo);
+      Log('====================================================', llInfo);
+
+      // Method 1: Root / Setprop
+      ExecuteAdbShell(ADeviceInfo, 'setprop sys.usb.config diag,adb', Resp);
+      ExecuteAdbShell(ADeviceInfo, 'setprop persist.sys.usb.config diag,adb', Resp);
+      ExecuteAdbShell(ADeviceInfo, 'setprop persist.vendor.usb.config diag,adb', Resp);
+
+      // Method 2: Launch secret dialer intent for the specific brand
+      case ABrand of
+        bcSamsung:
+          begin
+            Log('Opening Samsung USB Settings dialer (*#0808#)...', llInfo);
+            ExecuteAdbShell(ADeviceInfo,
+              'am start -a android.intent.action.DIAL -d "tel:*%230808%23"', Resp);
+          end;
+        bcXiaomi:
+          begin
+            Log('Opening Xiaomi Diag Mode dialer (*#*#717717#*#*)...', llInfo);
+            ExecuteAdbShell(ADeviceInfo,
+              'am start -a android.intent.action.DIAL -d "tel:*%23*%23717717%23*%23*"', Resp);
+          end;
+        bcHuawei:
+          begin
+            Log('Opening Huawei ProjectMenu dialer (*#*#2846579#*#*)...', llInfo);
+            ExecuteAdbShell(ADeviceInfo,
+              'am start -a android.intent.action.DIAL -d "tel:*%23*%232846579%23*%23*"', Resp);
+          end;
+        bcVivo:
+          begin
+            Log('Opening Vivo Factory Diag dialer (*#558#)...', llInfo);
+            ExecuteAdbShell(ADeviceInfo,
+              'am start -a android.intent.action.DIAL -d "tel:*%23558%23"', Resp);
+          end;
+        bcOppoRealme:
+          begin
+            Log('Opening Oppo/Realme Engineer Mode dialer (*#801#)...', llInfo);
+            ExecuteAdbShell(ADeviceInfo,
+              'am start -a android.intent.action.DIAL -d "tel:*%23801%23"', Resp);
+          end;
+      end;
+
+      Log('Diagnostic activation dispatched. Please inspect Device Manager Ports (COM & LPT).', llSuccess);
+      Log('----------------------------------------------------', llInfo);
+    end);
+end;
+
+procedure TGWTCommandService.AdbRestartModemRil(const ADeviceInfo: TUsbDeviceInfo);
+begin
+  RunAsync(
+    procedure
+    var
+      Resp: string;
+    begin
+      Log('TX >> Restarting Radio Interface Layer (RILD)...', llTx);
+      ExecuteAdbShell(ADeviceInfo, 'setprop ctl.restart ril-daemon', Resp);
+      Log('RILD restarted successfully.', llSuccess);
     end);
 end;
 

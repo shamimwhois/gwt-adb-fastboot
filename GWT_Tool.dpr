@@ -9,6 +9,7 @@ uses
   GWT.Protocol.ADB in 'Protocols\GWT.Protocol.ADB.pas',
   GWT.CommandService in 'Services\GWT.CommandService.pas',
   Frame.AdbService in 'Frames\Frame.AdbService.pas' {FrameAdbService: TFrame},
+  Frame.AdbNetworkUnlock in 'Frames\Frame.AdbNetworkUnlock.pas' {FrameAdbNetworkUnlock: TFrame},
   Frame.FastbootService in 'Frames\Frame.FastbootService.pas' {FrameFastbootService: TFrame},
   Frame.FastbootFlash in 'Frames\Frame.FastbootFlash.pas' {FrameFastbootFlash: TFrame},
   Frame.RecoveryService in 'Frames\Frame.RecoveryService.pas' {FrameRecoveryService: TFrame},

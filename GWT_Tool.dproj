@@ -173,6 +173,10 @@
             <Form>FrameAdbService</Form>
             <DesignClass>TFrame</DesignClass>
         </DCCReference>
+        <DCCReference Include="Frames\Frame.AdbNetworkUnlock.pas">
+            <Form>FrameAdbNetworkUnlock</Form>
+            <DesignClass>TFrame</DesignClass>
+        </DCCReference>
         <DCCReference Include="Frames\Frame.FastbootService.pas">
             <Form>FrameFastbootService</Form>
             <DesignClass>TFrame</DesignClass>

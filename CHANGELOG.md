@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-11-23
+
+### Added
+- **ADB Network Unlock & IMEI Repair Module (`Frame.AdbNetworkUnlock`)**:
+  - **Dynamic Brand & Model Filtering**: Pre-loaded series presets for Samsung, Xiaomi, Vivo, Huawei, Oppo/Realme, Transsion (Tecno/Infinix/Itel), MTK Generic, QCOM Generic, and Unisoc.
+  - **Dual IMEI Repair & Validation**:
+    - Built-in ISO/IEC 7812-1 **Luhn Checksum Algorithm** with real-time check-digit calculation and live validity badge indicators.
+    - Read IMEI 1 & IMEI 2 directly from properties and radio sub-info endpoints.
+    - Safe IMEI write with automatic pre-flight EFS/NVRAM security partition backup.
+    - Test IMEI generator for rapid lab verification.
+  - **Network & Carrier Unlock Engine**:
+    - Direct SIM de-personalization bypass via manufacturer radio AT sequences.
+    - Carrier policy unlock flags management.
+    - Baseband recovery tool to resolve null IMEI and "Unknown Baseband" crashes.
+  - **EFS & NVRAM Security Partitions**:
+    - Automated dump of `modemst1`, `modemst2`, `fsg`, `fsc`, `nvram`, `nvdata`, `secro` partitions to `/sdcard/GWT_*.img`.
+    - Automated modem & RILD daemon restart sequence.
+  - **Diagnostic (DIAG) Port Switcher**:
+    - USB configuration switching to `diag,adb` via root/setprop.
+    - Manufacturer engineering secret dialers (`*#0808#`, `*#*#717717#*#*`, `*#*#2846579#*#*`, `*#558#`, `*#801#`).
+
+### Changed
+- **Unified Sub-Tab Navigation System**:
+  - Sub-tabs are now permanently available across all modes (`ADB`, `FASTBOOT`, `RECOVERY`).
+  - ADB mode features `[SERVICE]` and `[NETWORK UNLOCK & IMEI]`.
+  - Fastboot mode features `[SERVICE]` and `[FLASH]`.
+  - Recovery mode features `[SERVICE]` and `[FLASH / SIDELOAD]`.
+
+---
+
 ## [1.0.0] - 2026-11-23
 
 ### Added

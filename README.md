@@ -33,13 +33,29 @@ Download the official standalone release from the [Releases](https://github.com/
   - Seamlessly falls back to direct raw WinUSB bulk transport when socket is closed or unavailable.
 - **Three Core Workspace Modes**:
   - **ADB Mode**:
-    - Universal Read Device Info (Manufacturer, Model, Brand, Android Version, SDK, Security Patch, CPU Platform, Serial Number, Battery Level).
-    - ADB FRP Reset (Settings Secure Content Provider bypass).
-    - Device Reboot Controls: Fastboot, Recovery, EDL (Qualcomm 9008), System.
-    - Specialized Brand Cards:
-      - **Xiaomi**: Read MIUI version, bypass Mi Account/Cloud services, enable Qualcomm Diag port (`*#*#717717#*#*`), disable analytics daemons (`msa`).
-      - **Vivo**: Read Funtouch/OriginOS version, Vivo internal model, BSP version, safe factory reset, enable diagnostic mode, remove demo mode.
-      - **Huawei**: Read EMUI build, enable Manufacture Mode (`*#*#2846579#*#*`), ADB FRP reset.
+    - **Service Tab**:
+      - Universal Read Device Info (Manufacturer, Model, Brand, Android Version, SDK, Security Patch, CPU Platform, Serial Number, Battery Level).
+      - ADB FRP Reset (Settings Secure Content Provider bypass).
+      - Device Reboot Controls: Fastboot, Recovery, EDL (Qualcomm 9008), System.
+      - Specialized Brand Cards:
+        - **Xiaomi**: Read MIUI version, bypass Mi Account/Cloud services, enable Qualcomm Diag port (`*#*#717717#*#*`), disable analytics daemons (`msa`).
+        - **Vivo**: Read Funtouch/OriginOS version, Vivo internal model, BSP version, safe factory reset, enable diagnostic mode, remove demo mode.
+        - **Huawei**: Read EMUI build, enable Manufacture Mode (`*#*#2846579#*#*`), ADB FRP reset.
+    - **Network Unlock & IMEI Tab (Brand & Model-Driven)**:
+      - **Brand & Model Filtering**: Pre-loaded series presets for Samsung, Xiaomi, Vivo, Huawei, Oppo/Realme, Transsion (Tecno/Infinix/Itel), MTK Generic, QCOM Generic, and Unisoc.
+      - **Dual IMEI Repair & Validation**:
+        - Automatic ISO/IEC 7812-1 **Luhn Checksum Algorithm** verification and check-digit generation.
+        - Read IMEI 1 and IMEI 2 via property injection and radio TTYs.
+        - Safe IMEI write with automatic pre-flight EFS/NVRAM security partition backup.
+        - Built-in valid Test IMEI generator.
+      - **Network & Carrier Unlock**:
+        - Direct SIM de-personalization and carrier lock removal.
+        - Baseband recovery tool to fix "Unknown Baseband" and null IMEI.
+      - **EFS & NVRAM Security Partitions**:
+        - Dump `modemst1`, `modemst2`, `fsg`, `nvram`, `nvdata` block partitions to `/sdcard/GWT_*.img`.
+        - Native modem & RILD daemon restart.
+      - **Diagnostic (DIAG) Port Controls**:
+        - Root/Setprop activation (`diag,adb`) + OEM secret dialers (`*#0808#`, `*#*#717717#*#*`, `*#*#2846579#*#*`, `*#558#`, `*#801#`).
   - **Fastboot Mode**:
     - **Service Tab**: Huawei 16-digit FRP factory unlock (`oem frp-unlock <key>`), Xiaomi OEM unlock/relock/EDL reboot, Vivo BBK bootloader unlock (`bbk unlock_vivo`), and universal userdata formatting.
     - **Flash Tab**: Full Xiaomi Fastboot ROM automated multi-partition flasher + Universal partition flasher (`boot`, `recovery`, `vbmeta`, `super`, `system`, `vendor`, `cust`, `dtbo`).
@@ -75,7 +91,8 @@ gwt-adb-fastboot/
 ├── Services/
 │   └── GWT.CommandService.pas            # Central async operation orchestrator
 ├── Frames/
-│   ├── Frame.AdbService.pas/.dfm         # ADB workspace & brand cards
+│   ├── Frame.AdbService.pas/.dfm         # ADB service workspace & brand cards
+│   ├── Frame.AdbNetworkUnlock.pas/.dfm   # ADB Network Unlock & IMEI Repair module
 │   ├── Frame.FastbootService.pas/.dfm    # Fastboot service workspace
 │   ├── Frame.FastbootFlash.pas/.dfm      # Fastboot partition & ROM flasher
 │   ├── Frame.RecoveryService.pas/.dfm    # Recovery service workspace

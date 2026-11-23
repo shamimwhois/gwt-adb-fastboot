@@ -396,9 +396,9 @@ object FormMain: TFormMain
         object btnSubFlash: TButton
           Left = 126
           Top = 2
-          Width = 120
+          Width = 180
           Height = 26
-          Caption = 'FLASH'
+          Caption = 'NETWORK UNLOCK & IMEI'
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clWhite
           Font.Height = -11
